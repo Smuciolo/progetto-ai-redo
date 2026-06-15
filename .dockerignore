@@ -1,0 +1,4 @@
+ambiente_virtuale/
+__pycache__/
+*.pyc
+.git/
