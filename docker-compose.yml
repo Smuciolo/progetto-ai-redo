@@ -1,0 +1,33 @@
+
+
+services:
+  # 1. IL MOTORE IA (vLLM) CHE USA LA GPU
+  vllm-engine:
+    image: vllm/vllm-openai:latest
+    container_name: vllm-server
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN} # Opzionale, se serve un token
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    # Questa è la magia cross-platform per la GPU Nvidia:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: --model Qwen/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 8000
+
+  # 2. IL TUO SERVER MCP (Quello che calcola i codici fiscali)
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-enterprise-server
+    depends_on:
+      - vllm-engine
+    ports:
+      - "5000:5000" # Cambia la porta in base a cosa ascolta il tuo server.py
