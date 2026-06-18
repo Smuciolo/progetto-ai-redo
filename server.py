@@ -50,6 +50,7 @@ async def fetch_enterprise_json(codice_fiscale: str) -> str:
 # o ha lanciato questo specifico file dal terminale. 
 # Se questo file è stato aperto di nascosto da un altro programma, non fare nulla e stai fermo".
 if __name__ == "__main__":
+    
     # qui diciamo start server con mcp_server... e poi il metodo di comunicazione, in questo caso stdio standard input output
     mcp.run(transport="stdio")
     
