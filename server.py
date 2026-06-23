@@ -1,56 +1,70 @@
-# importiamo i pacchetti dal nostro ambiente virtuale
+import os
+import logging
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-#praticamente stiamo usando FastMCP, troviamo tutto sulla guida ufficiale di antropic, diciamo prendi dal pacchetto mcp
-#cartella server la classe FastMCP
+# 1. Configurazione del Logging (per vedere i passaggi nei log di Docker)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("mcp-enterprise-server")
 
-#ora creiamo il vero e proprio server, mettiamo dentro la variabile mcp_server FastMCP
-
+# 2. Inizializzazione del Server MCP
 mcp = FastMCP("Enterprise Data Server")
 
-#creiamo il primo tool della nostra fabrica, in pratica gli stiamo dicendo, 
-#Prendi questa funzione che c'è qui sotto, analizzala, 
-#impacchettala e inseriscila nel catalogo ufficiale degli strumenti che l'IA può utilizzare
+# 3. Indirizzo del container vLLM (gestito dalla rete di Docker)
+VLLM_HOST = os.getenv("VLLM_HOST", "http://localhost:8000")
 
-#spiegazione tencnica, creiamo una funzione asincrona che prende in input un int e in output una stringa (-> str:)
-#la roba tra virgolette viene passata all'intelligenza artificiale e gli da le istruzioni
-
+# -------------------------------------------------------------------------
+# 🚧 SEZIONE JSON (IN PAUSA / DA DEFINIRE)
+# -------------------------------------------------------------------------
 @mcp.tool()
-async def fetch_enterprise_json(codice_fiscale: str) -> str:
+async def recupera_json_aziendale() -> str:
     """
-    Recupera i dati aziendali di un utente in formato json partendo dal suo codice fiscale.
-    Usa questo strumento quando l'utente chiede informazioni su un dipendeteo un utente specifico
+    [TEMPORANEAMENTE IN STOP]
+    Questo tool gestirà il recupero o la ricezione del file JSON aziendale.
+    Al momento restituisce un messaggio di standby.
     """
-    # con questo url stiamo dicendo dove andare a prendere la cartella del dipendente,
-    # la f davanti a https si chiama f string e dice "prendi il valore 
-    # che c'è dentro la variabile codice_fiscale e mettilo a fine link"
-    url =f"https://jsonplaceholder.typicode.com/users/{codice_fiscale}"
+    logger.info("ℹ️ [TOOL] Chiamato tool JSON (attualmente in stop).")
+    return "Funzionalità di recupero JSON attualmente in standby. Configurazione in corso."
 
-    # ora andiamo a usare httpx per creare il nostro browser in modo che si possa fare la retrive dall'url qui sopra 
-    # async with, questo è importante ci garantisce la gestione asincorna del processo e il with ci permette di chiudere
-    # l'instanza nel momento che il processo giunge al suo termine, senza RIMAREBBE APERTO memory leak
-    # Computer, per favore apri una sessione protetta (async with), accendi un browser invisibile e chiamalo client 
-    # (httpx.AsyncClient() as client). Tieniti pronto, perché nelle 
-    # righe che seguono userò questo browser per navigare. Appena avrò finito, chiudi tutto da solo e non sprecare memoria".
 
-    async with httpx.AsyncClient() as Client:
-        # qui creiamo una nuova variabile e ci mettiamo dentro la risposta del nostro browser, await ci garantisce che 
-        # il processo aspetti 
+# -------------------------------------------------------------------------
+# 🧠 SEZIONE IA: Il motore per usare effettivamente vLLM
+# -------------------------------------------------------------------------
+@mcp.tool()
+async def chiedi_all_intelligenza_artificiale(domanda: str) -> str:
+    """
+    Invia una domanda o un compito direttamente al modello IA Qwen (su GPU Nvidia).
+    Usa questo strumento per elaborare testi, fare analisi o ragionamenti generici.
+    """
+    logger.info(f"🚀 [IA] Invio richiesta a vLLM. Domanda: '{domanda[:40]}...'")
+    
+    # URL ufficiale delle API compatibili con OpenAI esposte da vLLM
+    url = f"{VLLM_HOST}/v1/chat/completions"
+    
+    # Il pacchetto di dati richiesto da vLLM
+    payload = {
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "messages": [
+            {"role": "system", "content": "Sei un assistente AI Enterprise integrato via MCP. Rispondi in modo professionale e in italiano."},
+            {"role": "user", "content": domanda}
+        ],
+        "temperature": 0.3
+    }
+    
+    # Sessione asincrona protetta per inviare i dati all'IA
+    async with httpx.AsyncClient(timeout=60.0) as Client:
+        try:
+            response = await Client.post(url, json=payload)
+            response.raise_for_status()
+            
+            # Estraiamo la risposta testuale restituita dal modello
+            risultato = response.json()
+            return risultato["choices"][0]["message"]["content"]
+            
+        except Exception as e:
+            logger.error(f"❌ Errore di comunicazione con vLLM: {str(e)}")
+            return f"Impossibile parlare con l'IA. Controlla che vLLM sia attivo. Errore: {str(e)}"
 
-        # Prendi il browser invisibile (client), mandalo all'indirizzo internet 
-        # (url) a scaricare i dati della pagina. Aspetta pazientemente 
-        # che i dati arrivino (await) e, quando finalmente li hai ricevuti, impacchettali tutti dentro la scatola chiamata response"
-        response = await Client.get(url)
-
-        # qui diciamo restituisci solo il testo (.text) lascia stare errori ecc
-        return response.text 
-
-# Questa riga dice a Python: "Esegui quello che c'è qui sotto solo se l'utente ha cliccato "Play" 
-# o ha lanciato questo specifico file dal terminale. 
-# Se questo file è stato aperto di nascosto da un altro programma, non fare nulla e stai fermo".
 if __name__ == "__main__":
-    
-    # qui diciamo start server con mcp_server... e poi il metodo di comunicazione, in questo caso stdio standard input output
+    # Avvio del server in modalità Standard I/O (richiesta dai client MCP)
     mcp.run(transport="stdio")
-    
