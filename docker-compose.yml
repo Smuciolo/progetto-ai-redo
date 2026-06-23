@@ -1,42 +1,28 @@
 services:
-  # 1. IL MOTORE IA ENTERPRISE (vLLM SU NVIDIA)
-  vllm-engine:
-    image: vllm/vllm-openai:latest
-    container_name: vllm-server
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
-      # Previene blocchi di memoria su sistemi Linux/WSL complessi
-      - VLLM_WORKER_MULTIPROC_METHOD=spawn
-    ports:
-      - "8000:8000"
-    volumes:
-      # Mantiene i modelli scaricati persistenti sul server ospite
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # Comando ufficiale per caricare il modello Enterprise Qwen da 7 Miliardi di parametri
-    command: --model Qwen/Qwen2.5-7B-Instruct --host 0.0.0.0 --port 8000
-    # L'Healthcheck dice a Docker come capire se vLLM ha FINITO di scaricare il modello ed è pronto
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/models"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  # 2. IL TUO SERVER MCP (I tuoi strumenti aziendali)
+  # -------------------------------------------------------------------------
+  # 1. L'ORCHESTRATORE (Il tuo Server MCP con i Bivi e i Tool)
+  # -------------------------------------------------------------------------
   mcp-server:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: mcp-enterprise-server
-    depends_on:
-      vllm-engine:
-        condition: service_healthy # Il tuo codice si accende SOLO quando l'IA risponde correttamente
     environment:
-      - VLLM_HOST=http://vllm-engine:8000s
+    # cambiare valore ai mode in locale se non uso groq 
+      - AI_MODE=groq
+      - GROQ_HOST=https://api.groq.com/openai
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - VLLM_HOST=http://vllm-engine:8000
+
+  # -------------------------------------------------------------------------
+  # 2. IL FRONTEND (La pagina web per i dipendenti)
+  # -------------------------------------------------------------------------
+  web-frontend:
+    image: nginx:alpine
+    container_name: web-enterprise-frontend
+    ports:
+      - "80:80"  # Espone la pagina web sulla porta standard HTTP (http://localhost)
+    volumes:
+      - ./html:/usr/share/nginx/html  # Mappa la cartella del tuo PC dentro il server Web
+    depends_on:
+      - mcp-server
