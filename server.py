@@ -94,4 +94,5 @@ async def chiedi_all_intelligenza_artificiale(domanda: str) -> str:
 
 if __name__ == "__main__":
     # Avvio del server in modalità Standard I/O (richiesta dai client MCP)
-    mcp.run(transport="stdio")
+    # Questo costringe il server a rimanere attivo in ascolto sulla porta 8000
+    mcp.run(transport="sse")
