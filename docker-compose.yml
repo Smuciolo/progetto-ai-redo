@@ -1,29 +1,36 @@
 services:
   # -------------------------------------------------------------------------
-  # 1. L'ORCHESTRATORE (Il tuo Server MCP con i Bivi e i Tool)
+  # 1. IL FRONTEND AZIENDALE (Open WebUI) - Accessibile da http://localhost
+  # -------------------------------------------------------------------------
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui-frontend
+    ports:
+      - "80:8080" # Mappa la porta standard 80 del tuo PC alla 8080 interna di WebUI
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      # Colleghiamo Groq direttamente a Open WebUI come fornitore OpenAI-compatible
+      - OPENAI_API_BASE_URL=https://api.groq.com/openai/v1
+      - OPENAI_API_KEY=${GROQ_API_KEY}
+      # Se vorrai collegare anche vLLM locale in futuro, potrai farlo da qui o dalle impostazioni web
+    restart: always
+
+  # -------------------------------------------------------------------------
+  # 2. L'ORCHESTRATORE (Il tuo Server MCP Puro)
   # -------------------------------------------------------------------------
   mcp-server:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: mcp-enterprise-server
-    # NOTA: La riga 'ports' è sparita, il backend è protetto all'interno!
+    command: fastmcp run server.py --host 0.0.0.0 --port 8000
     environment:
       - AI_MODE=groq
       - GROQ_HOST=https://api.groq.com/openai
       - GROQ_API_KEY=${GROQ_API_KEY}
       - VLLM_HOST=http://vllm-engine:8000
+    restart: always
 
-  # -------------------------------------------------------------------------
-  # 2. IL FRONTEND + REVERSE PROXY (L'unico punto di accesso per gli utenti)
-  # -------------------------------------------------------------------------
-  web-frontend:
-    image: nginx:alpine
-    container_name: web-enterprise-frontend
-    ports:
-      - "80:80"  # Espone la pagina sulla porta standard http://localhost
-    volumes:
-      - ./html:/usr/share/nginx/html  # I file HTML del tuo frontend
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro # 👈 Monta la configurazione di Nginx
-    depends_on:
-      - mcp-server
+volumes:
+  open-webui-data: # Volume per non perdere gli utenti e le chat quando spegni Docker
